@@ -1,32 +1,118 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Email Validator</title>
-</head>
-<body>
-    <div class="container">
-        <h1>Email Validator</h1>
-        <form id="emailForm">
-            <label for="email">Enter Email:</label>
-            <input type="email" id="email" name="email" required>
-            <br>
-            <button type="submit" onclick="validateEmail()">Validate</button>
-        </form>
-    </div>
+<html>
+  <head>
+    <title>API Data Monitor</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      pre {
+        background: #f4f4f4;
+        padding: 10px;
+        white-space: pre-wrap;
+        border: 1px solid #ddd;
+      }
+      .highlight {
+        background-color: yellow;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>API Data Monitor</h1>
+    <h2>Status</h2>
+    <p id="status"></p>
+    <h2>Total Changes</h2>
+    <p id="totalChanges">0</p>
+    <h2>Changes Detected</h2>
+    <pre id="changes"></pre>
+    <h2>Previous Data</h2>
+    <pre id="previousData"></pre>
+    <h2>Current Data</h2>
+    <pre id="currentData"></pre>
+
     <script>
-      function validateEmail() {
-        const allowedDomains = ["000sac.info", "123mail.cl"];
-        const email = document.getElementById('email').value;
-        const domain = email.split('@')[1].toLowerCase();
-    
-        if (allowedDomains.includes(domain)) {
-          alert('Valid email address');
-        } else {
-          alert('Invalid email domain. Please use 000sac.info or 123mail.cl');
+      const apiUrl =
+        "https://www.seagate.com/ww/solrQueryResponseRetrieval?brand=%28seagate+or+lacie%29&locale=en_us&q=*&collection=pricing&wt=json&start=0&rows=99999&sort=releaseDate+desc&fl=ecomm_product_cf%2Cecomm_stock_status%2Csku_cf%2CpdpURL%2Cecomm_tags%2Cecomm_enabled%2Cecomm_low_price%2Cecomm_max_price%2Cecomm_currency%2Cecomm_discount%2Cecomm_final_price%2Cecomm_regular_price%2Cecomm_currency_code%2Cpromo_title%2Cpromo_color%2Cpromo_description%2Cpromo_short_description%2Cpromo_start_date%2Cpromo_end_date"; // Replace with your API URL
+      let previousData = null;
+      let changeCount = 0;
+
+      async function fetchData() {
+        try {
+          const response = await fetch(apiUrl);
+          const data = await response.json();
+          console.log("Fetched data:", data);
+          return data;
+        } catch (error) {
+          console.error("Error fetching data:", error);
+          return null;
         }
       }
+
+      function compareData(oldData, newData) {
+        if (!oldData) return true; // If there's no old data, consider it a change
+        return JSON.stringify(oldData) !== JSON.stringify(newData);
+      }
+
+      function displayData(elementId, data) {
+        document.getElementById(elementId).textContent = JSON.stringify(
+          data,
+          null,
+          2
+        );
+      }
+
+      function highlightChanges(oldData, newData) {
+        const changes = {};
+        for (const key in newData) {
+          if (JSON.stringify(oldData[key]) !== JSON.stringify(newData[key])) {
+            changes[key] = { oldValue: oldData[key], newValue: newData[key] };
+          }
+        }
+        console.log("Highlighted changes:", changes);
+        return changes;
+      }
+
+      function displayChanges(changes) {
+        let html = "";
+        for (const key in changes) {
+          html += `<strong>${key}:</strong><br><span>Old:</span> <span class="highlight">${JSON.stringify(
+            changes[key].oldValue,
+            null,
+            2
+          )}</span><br><span>New:</span> <span class="highlight">${JSON.stringify(
+            changes[key].newValue,
+            null,
+            2
+          )}</span><br><br>`;
+        }
+        document.getElementById("changes").innerHTML = html;
+      }
+
+      async function monitorAPI() {
+        const newData = await fetchData();
+        if (newData) {
+          const hasChanged = compareData(previousData, newData);
+          document.getElementById("status").textContent = hasChanged
+            ? "Data has changed."
+            : "No changes detected.";
+
+          if (hasChanged) {
+            displayData("currentData", newData);
+            if (previousData) {
+              displayData("previousData", previousData);
+              const changes = highlightChanges(previousData, newData);
+              displayChanges(changes);
+            }
+            previousData = newData;
+            changeCount++;
+            document.getElementById("totalChanges").textContent = changeCount;
+          }
+        }
+      }
+
+      setInterval(monitorAPI, 60000); // Fetch data every 60 seconds
+      monitorAPI(); // Initial fetch
     </script>
-</body>
+  </body>
 </html>
